@@ -1,50 +1,154 @@
-# Welcome to your Expo app 👋
+# CLIKKO Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+CLIKKO is a multi-tenant workforce attendance mobile app built with Expo SDK 54,
+Expo Router, React Native, TypeScript, Zustand, React Query, and mock data that is
+ready for future Node/Express and Supabase integration.
 
-## Get started
+## Local Development
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Install dependencies:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Start Expo:
 
-## Learn more
+```bash
+npm start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Run checks:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run lint
+npm run typecheck
+```
 
-## Join the community
+## Expo Go
 
-Join our community of developers creating universal apps.
+Run the development server:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm start
+```
+
+Scan the QR code with Expo Go. The app currently uses mock authentication and
+mock attendance data.
+
+Demo credentials:
+
+```text
+Email: admin@demo.com
+Password: Password123
+```
+
+## Architecture
+
+Routes live in `src/app`, which Expo Router supports natively. Non-route code is
+kept outside the routing tree:
+
+```text
+src/
+  app/
+  api/
+  config/
+  components/
+  features/
+  hooks/
+  mocks/
+  navigation/
+  providers/
+  services/
+  store/
+  theme/
+  types/
+  utils/
+```
+
+Route files render screens and handle navigation. Business logic lives in
+feature folders and mock services.
+
+## GitHub Actions
+
+CI runs on pushes and pull requests:
+
+```text
+npm ci
+npm run lint
+npm run typecheck
+```
+
+Tag pushes matching `v*` trigger:
+
+- GitHub Release creation
+- Generated release notes
+- Android APK build through EAS `preview`
+- Android AAB build through EAS `production`
+
+## Release Process
+
+Patch release:
+
+```bash
+npm run version:patch
+git push origin main --follow-tags
+```
+
+Minor release:
+
+```bash
+npm run version:minor
+git push origin main --follow-tags
+```
+
+Major release:
+
+```bash
+npm run version:major
+git push origin main --follow-tags
+```
+
+First release when `package.json` is already `0.1.0`:
+
+```bash
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
+```
+
+## APK Generation
+
+GitHub Actions generates the APK on `v*` tag pushes using:
+
+```bash
+npx eas-cli build --platform android --profile preview --non-interactive --wait
+```
+
+Manual APK build:
+
+```bash
+npx eas-cli build --platform android --profile preview
+```
+
+Manual AAB build:
+
+```bash
+npx eas-cli build --platform android --profile production
+```
+
+## Required Secrets
+
+Add this GitHub Actions repository secret:
+
+```text
+EXPO_TOKEN
+```
+
+Before the first EAS cloud build, link the project:
+
+```bash
+npx eas-cli init
+```
+
+See [docs/releases.md](docs/releases.md) for the full release runbook.
