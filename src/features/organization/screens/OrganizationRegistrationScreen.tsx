@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
@@ -13,7 +13,10 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9\s-]{8,}$/;
 
 export function OrganizationRegistrationScreen() {
-  const registerOrganization = useOrganizationStore((state) => state.registerOrganization);
+  const registerOrganization = useOrganizationStore(
+    (state) => state.registerOrganization
+  );
+
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -23,12 +26,22 @@ export function OrganizationRegistrationScreen() {
     numberOfEmployees: '',
   });
 
-  const updateField = (key: keyof typeof form, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
+  const updateField = (
+    key: keyof typeof form,
+    value: string
+  ) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
   };
 
   const validate = () => {
-    if (Object.values(form).some((value) => !value.trim())) {
+    if (
+      Object.values(form).some(
+        (value) => !value.trim()
+      )
+    ) {
       return 'All fields are required.';
     }
 
@@ -40,7 +53,10 @@ export function OrganizationRegistrationScreen() {
       return 'Enter a valid phone number.';
     }
 
-    if (Number.isNaN(Number(form.numberOfEmployees)) || Number(form.numberOfEmployees) <= 0) {
+    if (
+      Number.isNaN(Number(form.numberOfEmployees)) ||
+      Number(form.numberOfEmployees) <= 0
+    ) {
       return 'Number of employees must be greater than zero.';
     }
 
@@ -51,52 +67,111 @@ export function OrganizationRegistrationScreen() {
     const validationError = validate();
 
     if (validationError) {
-      Alert.alert('Check registration form', validationError);
+      Alert.alert(
+        'Check registration form',
+        validationError
+      );
       return;
     }
 
     await registerOrganization({
       ...form,
-      numberOfEmployees: Number(form.numberOfEmployees),
+      numberOfEmployees: Number(
+        form.numberOfEmployees
+      ),
     });
-    Alert.alert('Organization successfully created.');
-    router.push('/organization-verification');
+
+    Alert.alert(
+      'Organization successfully created.'
+    );
+
+    router.push(
+      '/organization-verification' as Href
+    );
   };
 
   return (
     <AppScreen>
       <View>
-        <Text style={styles.title}>Register Organization</Text>
-        <Text style={styles.subtitle}>Create the tenant and prepare the Super Admin account.</Text>
+        <Text style={styles.title}>
+          Register Organization
+        </Text>
+
+        <Text style={styles.subtitle}>
+          Create the tenant and prepare the Super
+          Admin account.
+        </Text>
       </View>
-      <AppTextInput placeholder="Organization Name" value={form.name} onChangeText={(value) => updateField('name', value)} />
+
+      <AppTextInput
+        placeholder="Organization Name"
+        value={form.name}
+        onChangeText={(value) =>
+          updateField('name', value)
+        }
+      />
+
       <AppTextInput
         autoCapitalize="none"
         keyboardType="email-address"
         placeholder="Organization Email"
         value={form.email}
-        onChangeText={(value) => updateField('email', value)}
+        onChangeText={(value) =>
+          updateField('email', value)
+        }
       />
+
       <AppTextInput
         placeholder="Contact Person"
         value={form.contactPerson}
-        onChangeText={(value) => updateField('contactPerson', value)}
+        onChangeText={(value) =>
+          updateField('contactPerson', value)
+        }
       />
+
       <AppTextInput
         keyboardType="phone-pad"
         placeholder="Phone Number"
         value={form.phone}
-        onChangeText={(value) => updateField('phone', value)}
+        onChangeText={(value) =>
+          updateField('phone', value)
+        }
       />
-      <AppTextInput placeholder="Country" value={form.country} onChangeText={(value) => updateField('country', value)} />
+
+      <AppTextInput
+        placeholder="Country"
+        value={form.country}
+        onChangeText={(value) =>
+          updateField('country', value)
+        }
+      />
+
       <AppTextInput
         keyboardType="number-pad"
         placeholder="Number of Employees"
         value={form.numberOfEmployees}
-        onChangeText={(value) => updateField('numberOfEmployees', value)}
+        onChangeText={(value) =>
+          updateField(
+            'numberOfEmployees',
+            value
+          )
+        }
       />
-      <PrimaryButton label="Create Organization" onPress={handleSubmit} />
-      <PrimaryButton label="Organization Login" variant="outline" onPress={() => router.push('/organization-login')} />
+
+      <PrimaryButton
+        label="Create Organization"
+        onPress={handleSubmit}
+      />
+
+      <PrimaryButton
+        label="Organization Login"
+        variant="outline"
+        onPress={() =>
+          router.push(
+            '/organization-login' as Href
+          )
+        }
+      />
     </AppScreen>
   );
 }
@@ -108,6 +183,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0,
   },
+
   subtitle: {
     color: colors.textSecondary,
     marginTop: spacing.sm,

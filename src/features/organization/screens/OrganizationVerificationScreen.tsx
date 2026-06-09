@@ -1,4 +1,5 @@
-import { router } from 'expo-router';
+
+import { type Href, router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/common/AppScreen';
@@ -20,7 +21,12 @@ export function OrganizationVerificationScreen() {
         </Text>
         <Text style={styles.body}>Organization successfully created.</Text>
       </View>
-      <PrimaryButton label="Go to Login" onPress={() => router.replace('/organization-login')} />
+      <PrimaryButton
+  label="Go to Login"
+  onPress={() =>
+    router.replace('/organization-login' as Href)
+  }
+/>
     </AppScreen>
   );
 }

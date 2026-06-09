@@ -6,7 +6,12 @@ import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { StaffStatus } from '@/types';
 
-const filters: (StaffStatus | 'ALL')[] = ['ALL', 'ACTIVE', 'ON_LEAVE', 'INACTIVE'];
+const filters: (StaffStatus | 'ALL')[] = [
+  'ALL',
+  'ACTIVE',
+  'SUSPENDED',
+  'ARCHIVED',
+];
 
 export function StaffListScreen() {
   const { query, setQuery, staff, statusFilter, setStatusFilter } = useStaffStore();
