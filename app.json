@@ -45,6 +45,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "09ef0a12-a9b1-4abf-bbb4-0d118add485f"
+      }
+    },
+    "owner": "iamtouchstones-team"
   }
 }
