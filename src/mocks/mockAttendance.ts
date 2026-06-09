@@ -21,7 +21,6 @@ const getStatus = (dateIndex: number, staffIndex: number): AttendanceStatus => {
   if (dateIndex === 0 && staffIndex === 4) return 'ABSENT';
   if (dateIndex === 0 && staffIndex === 7) return 'ABSENT';
   if (staffIndex % 5 === 2) return 'LATE';
-  if (dateIndex === 0 && staffIndex % 2 === 0) return 'CLOCKED_IN';
   return 'PRESENT';
 };
 
@@ -30,6 +29,7 @@ export const mockAttendance: Attendance[] = dates.flatMap((date, dateIndex) =>
     const status = getStatus(dateIndex, staffIndex);
     const hasClockIn = status !== 'ABSENT';
     const clockInMinute = staffIndex % 3 === 0 ? '55' : staffIndex % 3 === 1 ? '02' : '31';
+    const isOpenShift = dateIndex === 0 && hasClockIn && staffIndex % 2 === 0;
 
     return {
       id: `att-${date.replaceAll('-', '')}-${staffId}`,
@@ -40,9 +40,8 @@ export const mockAttendance: Attendance[] = dates.flatMap((date, dateIndex) =>
       date,
       clockInAt: hasClockIn ? `${date}T08:${clockInMinute}:00.000Z` : null,
       clockOutAt:
-        hasClockIn && status !== 'CLOCKED_IN'
-          ? `${date}T16:${String(5 + staffIndex).padStart(2, '0')}:00.000Z`
-          : null,
+        hasClockIn && !isOpenShift ? `${date}T16:${String(5 + staffIndex).padStart(2, '0')}:00.000Z` : null,
+      hoursWorked: hasClockIn && !isOpenShift ? 8 : 0,
       status,
       notes: status === 'ABSENT' ? 'Marked absent in mock attendance register.' : undefined,
     };
