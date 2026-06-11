@@ -1,16 +1,22 @@
-name: Release
+name: CI and Release
 
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  validate:
     runs-on: ubuntu-latest
+
+    outputs:
+      is-release: ${{ steps.check-tag.outputs.is-release }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +27,7 @@ jobs:
           node-version: 20.19.x
           cache: npm
 
-      - name: Install
+      - name: Install dependencies
         run: npm ci
 
       - name: Lint
@@ -30,7 +36,143 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Check if release tag
+        id: check-tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "is-release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: validate
+    if: needs.validate.outputs.is-release == 'true'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+      - name: Build Android APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -e
+
+          echo "Starting APK build..."
+
+          npx eas-cli build \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --wait
+
+      - name: Build Android AAB
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -e
+
+          echo "Starting AAB build..."
+
+          npx eas-cli build \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --wait
+
+      - name: Get latest APK URL
+        id: apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -e
+
+          APK_URL=$(npx eas-cli build:list \
+            --platform android \
+            --status finished \
+            --limit 20 \
+            --json | jq -r '
+              map(select(.buildProfile == "preview"))
+              | sort_by(.completedAt)
+              | reverse
+              | .[0].artifacts.applicationArchiveUrl
+            ')
+
+          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
+            echo "::error::APK URL not found"
+            exit 1
+          fi
+
+          echo "APK URL: $APK_URL"
+          echo "url=$APK_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest AAB URL
+        id: aab
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -e
+
+          AAB_URL=$(npx eas-cli build:list \
+            --platform android \
+            --status finished \
+            --limit 20 \
+            --json | jq -r '
+              map(select(.buildProfile == "production"))
+              | sort_by(.completedAt)
+              | reverse
+              | .[0].artifacts.applicationArchiveUrl
+            ')
+
+          if [ -z "$AAB_URL" ] || [ "$AAB_URL" = "null" ]; then
+            echo "::error::AAB URL not found"
+            exit 1
+          fi
+
+          echo "AAB URL: $AAB_URL"
+          echo "url=$AAB_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK
+        run: |
+          set -e
+
+          curl -L \
+            "${{ steps.apk.outputs.url }}" \
+            -o "clikko-${{ github.ref_name }}.apk"
+
+          test -f "clikko-${{ github.ref_name }}.apk"
+
+      - name: Download AAB
+        run: |
+          set -e
+
+          curl -L \
+            "${{ steps.aab.outputs.url }}" \
+            -o "clikko-${{ github.ref_name }}.aab"
+
+          test -f "clikko-${{ github.ref_name }}.aab"
+
+      - name: Upload APK and AAB to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            clikko-${{ github.ref_name }}.apk
+            clikko-${{ github.ref_name }}.aab
