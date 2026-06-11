@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
@@ -24,8 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20.19.x
-          cache: npm
+          node-version: 20
 
       - name: Install dependencies
         run: npm ci
@@ -38,7 +37,6 @@ jobs:
 
       - name: Check if release tag
         id: check-tag
-        shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "is-release=true" >> "$GITHUB_OUTPUT"
@@ -49,8 +47,10 @@ jobs:
   release:
     needs: validate
     if: needs.validate.outputs.is-release == 'true'
-
     runs-on: ubuntu-latest
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
       - name: Checkout
@@ -59,24 +59,22 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20.19.x
-          cache: npm
+          node-version: 20
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
 
-      - name: Build Android APK
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build APK
         run: |
           set -e
-
-          echo "Starting APK build..."
 
           npx eas-cli build \
             --platform android \
@@ -84,13 +82,9 @@ jobs:
             --non-interactive \
             --wait
 
-      - name: Build Android AAB
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build AAB
         run: |
           set -e
-
-          echo "Starting AAB build..."
 
           npx eas-cli build \
             --platform android \
@@ -98,57 +92,43 @@ jobs:
             --non-interactive \
             --wait
 
-      - name: Get latest APK URL
+      - name: Get APK URL
         id: apk
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -e
 
           APK_URL=$(npx eas-cli build:list \
             --platform android \
-            --status finished \
             --limit 20 \
-            --json | jq -r '
-              map(select(.buildProfile == "preview"))
-              | sort_by(.completedAt)
-              | reverse
-              | .[0].artifacts.applicationArchiveUrl
-            ')
+            --json \
+            | jq -r '[.[] | select(.buildProfile=="preview" and .status=="FINISHED")][0].artifacts.applicationArchiveUrl')
 
-          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
-            echo "::error::APK URL not found"
-            exit 1
-          fi
-
-          echo "APK URL: $APK_URL"
           echo "url=$APK_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Get latest AAB URL
+          echo "APK URL:"
+          echo "$APK_URL"
+
+          test -n "$APK_URL"
+          test "$APK_URL" != "null"
+
+      - name: Get AAB URL
         id: aab
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -e
 
           AAB_URL=$(npx eas-cli build:list \
             --platform android \
-            --status finished \
             --limit 20 \
-            --json | jq -r '
-              map(select(.buildProfile == "production"))
-              | sort_by(.completedAt)
-              | reverse
-              | .[0].artifacts.applicationArchiveUrl
-            ')
+            --json \
+            | jq -r '[.[] | select(.buildProfile=="production" and .status=="FINISHED")][0].artifacts.applicationArchiveUrl')
 
-          if [ -z "$AAB_URL" ] || [ "$AAB_URL" = "null" ]; then
-            echo "::error::AAB URL not found"
-            exit 1
-          fi
-
-          echo "AAB URL: $AAB_URL"
           echo "url=$AAB_URL" >> "$GITHUB_OUTPUT"
+
+          echo "AAB URL:"
+          echo "$AAB_URL"
+
+          test -n "$AAB_URL"
+          test "$AAB_URL" != "null"
 
       - name: Download APK
         run: |
@@ -158,7 +138,7 @@ jobs:
             "${{ steps.apk.outputs.url }}" \
             -o "clikko-${{ github.ref_name }}.apk"
 
-          test -f "clikko-${{ github.ref_name }}.apk"
+          ls -lah
 
       - name: Download AAB
         run: |
@@ -168,6 +148,11 @@ jobs:
             "${{ steps.aab.outputs.url }}" \
             -o "clikko-${{ github.ref_name }}.aab"
 
+          ls -lah
+
+      - name: Verify Files
+        run: |
+          test -f "clikko-${{ github.ref_name }}.apk"
           test -f "clikko-${{ github.ref_name }}.aab"
 
       - name: Upload APK and AAB to Release
