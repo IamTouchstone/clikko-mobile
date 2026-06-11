@@ -15,33 +15,34 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      is-release: ${{ steps.check-tag.outputs.is-release }}
+      is-release: ${{ steps.release_check.outputs.is_release }}
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Run Lint
         run: npm run lint
 
-      - name: Typecheck
+      - name: Run Typecheck
         run: npm run typecheck
 
-      - name: Check if release tag
-        id: check-tag
+      - name: Detect Release Tag
+        id: release_check
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "is-release=true" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
           else
-            echo "is-release=false" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
           fi
 
   release:
@@ -53,28 +54,40 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Verify EXPO_TOKEN
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is missing"
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
 
-      - name: Build APK
+      - name: Build Android APK
         run: |
           set -e
+
+          echo "Starting APK build..."
 
           npx eas-cli build \
             --platform android \
@@ -82,9 +95,13 @@ jobs:
             --non-interactive \
             --wait
 
-      - name: Build AAB
+          echo "APK build completed"
+
+      - name: Build Android AAB
         run: |
           set -e
+
+          echo "Starting AAB build..."
 
           npx eas-cli build \
             --platform android \
@@ -92,70 +109,103 @@ jobs:
             --non-interactive \
             --wait
 
-      - name: Get APK URL
+          echo "AAB build completed"
+
+      - name: Fetch Latest APK URL
         id: apk
         run: |
           set -e
 
-          APK_URL=$(npx eas-cli build:list \
+          JSON=$(npx eas-cli build:list \
             --platform android \
-            --limit 20 \
-            --json \
-            | jq -r '[.[] | select(.buildProfile=="preview" and .status=="FINISHED")][0].artifacts.applicationArchiveUrl')
+            --limit 50 \
+            --json 2>/dev/null)
 
-          echo "url=$APK_URL" >> "$GITHUB_OUTPUT"
+          APK_URL=$(echo "$JSON" | jq -r '
+            map(
+              select(
+                .status == "finished" and
+                .buildProfile == "preview"
+              )
+            )
+            | sort_by(.createdAt)
+            | reverse
+            | .[0].artifacts.applicationArchiveUrl
+          ')
+
+          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
+            echo "::error::Unable to retrieve APK URL"
+            exit 1
+          fi
 
           echo "APK URL:"
           echo "$APK_URL"
 
-          test -n "$APK_URL"
-          test "$APK_URL" != "null"
+          echo "url=$APK_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Get AAB URL
+      - name: Fetch Latest AAB URL
         id: aab
         run: |
           set -e
 
-          AAB_URL=$(npx eas-cli build:list \
+          JSON=$(npx eas-cli build:list \
             --platform android \
-            --limit 20 \
-            --json \
-            | jq -r '[.[] | select(.buildProfile=="production" and .status=="FINISHED")][0].artifacts.applicationArchiveUrl')
+            --limit 50 \
+            --json 2>/dev/null)
 
-          echo "url=$AAB_URL" >> "$GITHUB_OUTPUT"
+          AAB_URL=$(echo "$JSON" | jq -r '
+            map(
+              select(
+                .status == "finished" and
+                .buildProfile == "production"
+              )
+            )
+            | sort_by(.createdAt)
+            | reverse
+            | .[0].artifacts.applicationArchiveUrl
+          ')
+
+          if [ -z "$AAB_URL" ] || [ "$AAB_URL" = "null" ]; then
+            echo "::error::Unable to retrieve AAB URL"
+            exit 1
+          fi
 
           echo "AAB URL:"
           echo "$AAB_URL"
 
-          test -n "$AAB_URL"
-          test "$AAB_URL" != "null"
+          echo "url=$AAB_URL" >> "$GITHUB_OUTPUT"
 
       - name: Download APK
         run: |
           set -e
 
-          curl -L \
+          curl -fL \
             "${{ steps.apk.outputs.url }}" \
             -o "clikko-${{ github.ref_name }}.apk"
 
-          ls -lah
+          if [ ! -f "clikko-${{ github.ref_name }}.apk" ]; then
+            echo "::error::APK download failed"
+            exit 1
+          fi
+
+          ls -lh
 
       - name: Download AAB
         run: |
           set -e
 
-          curl -L \
+          curl -fL \
             "${{ steps.aab.outputs.url }}" \
             -o "clikko-${{ github.ref_name }}.aab"
 
-          ls -lah
+          if [ ! -f "clikko-${{ github.ref_name }}.aab" ]; then
+            echo "::error::AAB download failed"
+            exit 1
+          fi
 
-      - name: Verify Files
-        run: |
-          test -f "clikko-${{ github.ref_name }}.apk"
-          test -f "clikko-${{ github.ref_name }}.aab"
+          ls -lh
 
-      - name: Upload APK and AAB to Release
+      - name: Upload Assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
